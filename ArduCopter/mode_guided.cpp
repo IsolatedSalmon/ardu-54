@@ -51,9 +51,10 @@ bool ModeGuided::init(bool ignore_checks)
 // should be called at 100hz or more
 void ModeGuided::run()
 {
+    // gcs().send_text(MAV_SEVERITY_INFO,"guided mode is %d",guided_mode);
+    // exit(EXIT_SUCCESS);
     // call the correct auto controller
     switch (guided_mode) {
-
     case Guided_TakeOff:
         // run takeoff controller
         takeoff_run();
@@ -77,6 +78,11 @@ void ModeGuided::run()
     case Guided_Angle:
         // run angle controller
         angle_control_run();
+        break;
+    
+    case Guided_Self_Define:
+        //run self defined control strategy
+        self_define_control_run();
         break;
     }
  }
@@ -134,7 +140,8 @@ bool ModeGuided::do_user_takeoff_start(float takeoff_alt_cm)
 void ModeGuided::pos_control_start()
 {
     // set to position control mode
-    guided_mode = Guided_WP;
+    // guided_mode = Guided_WP;
+    guided_mode = Guided_Self_Define;
 
     // initialise waypoint and spline controller
     wp_nav->wp_and_spline_init();
@@ -301,6 +308,29 @@ bool ModeGuided::set_destination(const Location& dest_loc, bool use_yaw, float y
     // log target
     copter.Log_Write_GuidedTarget(guided_mode, Vector3f(dest_loc.lat, dest_loc.lng, dest_loc.alt),Vector3f());
     return true;
+}
+
+void ModeGuided::self_define_control_run()
+{
+    // static uint32_t begin_time = 0;
+    // begin_time = AP_HAL::millis();
+    // static uint32_t end_time  = 0;
+    Location loc_self_;
+    if(copter.openmv.update())
+    {
+        loc_self_.lat = copter.openmv.a;   
+        loc_self_.lng = copter.openmv.b;
+        loc_self_.alt = copter.openmv.c;
+
+    }
+    loc_self_.lat = 391052254;
+    loc_self_.lng = 1171639675;
+    loc_self_.alt = 12;
+
+    set_destination(loc_self_); 
+    // float_t ellispe_time = 1000.0/((float)begin_time - (float)end_time);
+    // gcs().send_text(MAV_SEVERITY_INFO,"self_define_control_run running rate = %f",ellispe_time);
+    // end_time = AP_HAL::millis();
 }
 
 // guided_set_velocity - sets guided mode's target velocity
