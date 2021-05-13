@@ -51,8 +51,6 @@ bool ModeGuided::init(bool ignore_checks)
 // should be called at 100hz or more
 void ModeGuided::run()
 {
-    // gcs().send_text(MAV_SEVERITY_INFO,"guided mode is %d",guided_mode);
-    // exit(EXIT_SUCCESS);
     // call the correct auto controller
     switch (guided_mode) {
     case Guided_TakeOff:
@@ -81,8 +79,9 @@ void ModeGuided::run()
         break;
     
     case Guided_Self_Define:
-        //run self defined control strategy
+        // run the self defind guided mode
         self_define_control_run();
+        
         break;
     }
  }
@@ -292,12 +291,12 @@ bool ModeGuided::set_destination(const Location& dest_loc, bool use_yaw, float y
 
     // ensure we are in position control mode
     if (guided_mode != Guided_WP) {
-        pos_control_start();
+        // pos_control_start();
     }
-
     if (!wp_nav->set_wp_destination(dest_loc)) {
         // failure to set destination can only be because of missing terrain data
         AP::logger().Write_Error(LogErrorSubsystem::NAVIGATION, LogErrorCode::FAILED_TO_SET_DESTINATION);
+        gcs().send_text(MAV_SEVERITY_INFO,"fail to wet destination...");
         // failure is propagated to GCS with NAK
         return false;
     }
@@ -312,25 +311,52 @@ bool ModeGuided::set_destination(const Location& dest_loc, bool use_yaw, float y
 
 void ModeGuided::self_define_control_run()
 {
-    // static uint32_t begin_time = 0;
-    // begin_time = AP_HAL::millis();
-    // static uint32_t end_time  = 0;
+    static uint16_t _count = 0;
     Location loc_self_;
+
+    Vector3f stopping_point;
+
+    wp_nav->get_wp_stopping_point(stopping_point);
+
+    // loc_self_.lat = 391052254;
+    // loc_self_.lng = 1171639675;
     if(copter.openmv.update())
     {
         loc_self_.lat = copter.openmv.a;   
         loc_self_.lng = copter.openmv.b;
         loc_self_.alt = copter.openmv.c;
-
+        gcs().send_text(MAV_SEVERITY_INFO,"openmv updated...");
+        if(!wp_nav->reached_wp_destination()){
+            if(!set_destination(loc_self_))
+                gcs().send_text(MAV_SEVERITY_CRITICAL,"set destination failed...");
+        }
     }
-    loc_self_.lat = 391052254;
-    loc_self_.lng = 1171639675;
-    loc_self_.alt = 12;
-
-    set_destination(loc_self_); 
-    // float_t ellispe_time = 1000.0/((float)begin_time - (float)end_time);
-    // gcs().send_text(MAV_SEVERITY_INFO,"self_define_control_run running rate = %f",ellispe_time);
-    // end_time = AP_HAL::millis();
+    else
+    {
+        if(!wp_nav->reached_wp_destination()){
+            if(!set_destination(stopping_point)){
+            gcs().send_text(MAV_SEVERITY_CRITICAL,"set stopping destination failed...");
+            }
+        }
+    }
+    // set motors to full range
+    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
+    copter.failsafe_terrain_set_status(wp_nav->update_wpnav());
+    pos_control->update_z_controller();
+    // roll, pitch from waypoint controller, yaw heading from GCS or auto_heading()
+    attitude_control->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), auto_yaw.yaw(), true);
+    
+    // pos_control_run(); 
+    _count++;
+    if(_count == 400)
+    {
+        _count = 0;
+        gcs().send_text(MAV_SEVERITY_INFO,"lat = %f , lon = %f, alt= %f",(double)loc_self_.lat*0.0000001f, \
+                    (double)loc_self_.lng*0.0000001f, (double)loc_self_.alt );
+        gcs().send_text(MAV_SEVERITY_INFO,"wp_nav.x = %f , wp_nav.y = %f, wp_nav.z= %f",stopping_point.x, \
+                    stopping_point.y, stopping_point.z );
+    }
+  
 }
 
 // guided_set_velocity - sets guided mode's target velocity
@@ -682,6 +708,7 @@ void ModeGuided::angle_control_run()
     } else {
         pos_control->set_alt_target_from_climb_rate_ff(climb_rate_cms, G_Dt, false);
         pos_control->update_z_controller();
+        
     }
 }
 
