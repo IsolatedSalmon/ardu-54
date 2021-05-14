@@ -44,6 +44,7 @@
 #include <AP_RCTelemetry/AP_VideoTX.h>
 #include <AP_MSP/AP_MSP.h>
 #include <AP_Frsky_Telem/AP_Frsky_Parameters.h>
+#include <AP_OpenMV/AP_OpenMV.h>
 
 class AP_Vehicle : public AP_HAL::HAL::Callbacks {
 
@@ -242,6 +243,10 @@ protected:
 
     // sensor drivers
     AP_GPS gps;
+
+    // add the object for openmv
+    AP_OpenMV openmv;
+    
     AP_Baro barometer;
     Compass compass;
     AP_InertialSensor ins;

@@ -784,8 +784,9 @@ private:
 
 
 class ModeGuided : public Mode {
-
+    
 public:
+    friend AP_Vehicle;
     // inherit constructor
     using Mode::Mode;
 
@@ -822,6 +823,8 @@ public:
     void angle_control_start();
     void angle_control_run();
 
+    void location_destination_update(Location &loc1, const Location &loc2);
+
 protected:
 
     const char *name() const override { return "GUIDED"; }
@@ -837,7 +840,7 @@ private:
     enum class Options : int32_t {
         AllowArmingFromTX = (1U << 0),
     };
-
+    void self_define_control_start();
     void pos_control_start();
     void vel_control_start();
     void posvel_control_start();
@@ -845,6 +848,7 @@ private:
     void pos_control_run();
     void vel_control_run();
     void posvel_control_run();
+    void self_define_control_run();
     void set_desired_velocity_with_accel_and_fence_limits(const Vector3f& vel_des);
     void set_yaw_state(bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_angle);
 

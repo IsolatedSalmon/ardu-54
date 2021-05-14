@@ -138,6 +138,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #endif
     SCHED_TASK_CLASS(AP_Notify,            &copter.notify,              update,          50,  90),
     SCHED_TASK(one_hz_loop,            1,    100),
+	// SCHED_TASK(update_OpenMV,         20,    100),
     SCHED_TASK(ekf_check,             10,     75),
     SCHED_TASK(check_vibration,       10,     50),
     SCHED_TASK(gpsglitch_check,       10,     50),
@@ -230,7 +231,7 @@ void Copter::fast_loop()
     // run low level rate controllers that only require IMU data
     attitude_control->rate_controller_run();
 
-    // send outputs to the motors library immediately
+       // send outputs to the motors library immediately
     motors_output();
 
     // run EKF state estimator (expensive)
@@ -326,6 +327,77 @@ bool Copter::set_target_angle_and_climbrate(float roll_deg, float pitch_deg, flo
     return true;
 }
 
+// AP_OpenMV openmv{};
+// void Copter::update_OpenMV(void)
+// {
+// 	//openmv.update();
+//     // simulation
+//     //static uint32_t last_sim_new_data_time_ms = 0;
+
+
+//     static uint32_t last_set_pos_target_time_ms = 0;
+//     //Vector3f target = Vector3f(0, 0, 0);
+
+
+//     //if(openmv.update() ) {
+//         //Log_Write_OpenMV();
+//         //if(control_mode != GUIDED)
+//             //return;   //class code
+        
+//         //ractical application
+//         /*Location position;
+//         position.lat = openmv.lat;
+//         position.lng = openmv.lon;
+//         position.alt = openmv.height;
+//         float aa=position.lat/10000000.0f;
+//         float bb=position.lng/10000000.0f;
+//         float cc=position.alt/1.0f;
+//     	gcs().send_text(MAV_SEVERITY_CRITICAL,
+// 	                 "POSITION lat:%f lon:%f alt:%f",
+// 	                  aa,
+// 					  bb,
+//                       cc);*/
+//          // end of pratical code
+        
+//         //sim test-1
+//         /*Location target(position);
+//         float aaa=target.lat/10000000.0f;
+//         float bbb=target.lng/10000000.0f;
+//         float ccc=target.alt/1.0f;
+//         	gcs().send_text(MAV_SEVERITY_CRITICAL,
+// 	                 "target lat:%f lon:%f alt:%f",
+// 	                  aaa,
+// 					  bbb,
+//                       ccc);*/
+//         //Vector3f current_pos = inertial_nav.get_position();
+//         //target = target + current_pos;
+       
+//         // exit if vehicle is not in Guided mode or Auto-Guided mode   copy -305/Copter.cpp
+//         if (!flightmode->in_guided_mode()) {
+//         return;
+//         }
+//         Location position;
+//         position.lat = 391052254;
+//         position.lng = 1171639675;
+//         position.alt = 1000;
+//         Location target(position);
+//         float aaa=target.lat/10000000.0f;
+//         float bbb=target.lng/10000000.0f;
+//         float ccc=target.alt/1.0f;
+//         	gcs().send_text(MAV_SEVERITY_CRITICAL,
+// 	                 "target lat:%f lon:%f alt:%f",
+// 	                  aaa,
+// 					  bbb,
+//                       ccc);
+//         //Vector3f current_pos = inertial_nav.get_position();
+//         //target = target + current_pos;
+//         if(millis() - last_set_pos_target_time_ms > 500) {  // call in 2Hz
+//             // wp_nav->set_wp_destination(target, false);
+//             mode_guided.set_destination(position, false, 0, true, 0, false);
+//             last_set_pos_target_time_ms= millis();
+//         }
+//     //}��Ӧif��update��
+// }
 
 // rc_loops - reads user input from transmitter/receiver
 // called at 100hz
@@ -486,10 +558,19 @@ void Copter::three_hz_loop()
 // one_hz_loop - runs at 1Hz
 void Copter::one_hz_loop()
 {
+	/*gcs().send_text(MAV_SEVERITY_CRITICAL,
+	                 "Current altitude: %.1fm",
+	                 copter.flightmode->get_alt_above_ground_cm()/100.0f);*/
+
+	/*gcs().send_text(MAV_SEVERITY_CRITICAL,
+	                 "openmv lat:%f lon:%f alt:%f",
+	                 openmv.a,
+					 openmv.b,
+                     openmv.c);*/
     if (should_log(MASK_LOG_ANY)) {
         Log_Write_Data(LogDataID::AP_STATE, ap.value);
     }
-
+    
     arming.update();
 
     if (!motors->armed()) {
@@ -531,7 +612,7 @@ void Copter::init_simple_bearing()
     super_simple_cos_yaw = simple_cos_yaw;
     super_simple_sin_yaw = simple_sin_yaw;
 
-    // log the simple bearing
+    // log the simple bearing13
     if (should_log(MASK_LOG_ANY)) {
         Log_Write_Data(LogDataID::INIT_SIMPLE_BEARING, ahrs.yaw_sensor);
     }
@@ -541,6 +622,10 @@ void Copter::init_simple_bearing()
 void Copter::update_simple_mode(void)
 {
     float rollx, pitchx;
+
+    /*gcs().send_text(MAV_SEVERITY_CRITICAL,
+                     "simplemode: %.1f",
+                     copter.simple_mode);*/
 
     // exit immediately if no new radio frame or not in simple mode
     if (simple_mode == SimpleMode::NONE || !ap.new_radio_frame) {
