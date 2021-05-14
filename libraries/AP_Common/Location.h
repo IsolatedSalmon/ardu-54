@@ -34,7 +34,10 @@ public:
     Location(int32_t latitude, int32_t longitude, int32_t alt_in_cm, AltFrame frame);
     Location(const Vector3f &ekf_offset_neu);
 
-    static void set_terrain(AP_Terrain* terrain) { _terrain = terrain; }
+    // Location& operator=(const Location loc){this->alt = loc.alt; 
+    //             this->lng= loc.lng;this->lat= loc.lat; return *this;};
+
+    static void set_terrain(AP_Terrain* terrain) { _terrain = terrain; };
 
     // set altitude
     void set_alt_cm(int32_t alt_cm, AltFrame frame);

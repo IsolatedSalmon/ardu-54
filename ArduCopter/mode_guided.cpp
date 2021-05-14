@@ -18,6 +18,8 @@ static Vector3f guided_vel_target_cms;      // velocity target (used by velocity
 static uint32_t posvel_update_time_ms;      // system time of last target update to posvel controller (i.e. position and velocity update)
 static uint32_t vel_update_time_ms;         // system time of last target update to velocity controller
 
+static Location loc_self_old;               //storing the updating position data updated by last time, mainly use lat, lon, alt
+
 struct {
     uint32_t update_time_ms;
     float roll_cd;
@@ -43,7 +45,10 @@ struct Guided_Limit {
 bool ModeGuided::init(bool ignore_checks)
 {
     // start in position control mode
-    pos_control_start();
+    // pos_control_start();
+
+    // start in self defined controller
+    self_define_control_start();
     return true;
 }
 
@@ -139,8 +144,31 @@ bool ModeGuided::do_user_takeoff_start(float takeoff_alt_cm)
 void ModeGuided::pos_control_start()
 {
     // set to position control mode
-    // guided_mode = Guided_WP;
+    guided_mode = Guided_WP;
+    // guided_mode = Guided_Self_Define;
+
+    // initialise waypoint and spline controller
+    wp_nav->wp_and_spline_init();
+
+    // initialise wpnav to stopping point
+    Vector3f stopping_point;
+    wp_nav->get_wp_stopping_point(stopping_point);
+
+    // no need to check return status because terrain data is not used
+    wp_nav->set_wp_destination(stopping_point, false);
+
+    // initialise yaw
+    auto_yaw.set_mode_to_default(false);
+}
+
+
+// initialise self defined controller mode's position controller
+void ModeGuided::self_define_control_start()
+{
+    // set to position control mode
     guided_mode = Guided_Self_Define;
+
+    loc_self_old.zero();
 
     // initialise waypoint and spline controller
     wp_nav->wp_and_spline_init();
@@ -309,10 +337,28 @@ bool ModeGuided::set_destination(const Location& dest_loc, bool use_yaw, float y
     return true;
 }
 
+void ModeGuided::location_destination_update(Location &loc1, const Location &loc2)
+{
+    loc1.lng = loc2.lng;
+    loc1.lat = loc2.lat;
+    loc1.alt = loc2.alt;
+}
+
+// #define SIM_LOCATION 1
+#define MINI_DISTANCE 2
 void ModeGuided::self_define_control_run()
 {
     static uint16_t _count = 0;
-    Location loc_self_;
+    uint8_t sim_flag = 0;
+    Location loc_self_new;
+    // static uint16_t stm32board_data_update = 0;
+
+    // static bool once_flag = true;
+    #ifdef SIM_LOCATION
+        sim_flag = 1;
+    #else
+        sim_flag = 0;
+    #endif
 
     Vector3f stopping_point;
 
@@ -320,27 +366,45 @@ void ModeGuided::self_define_control_run()
 
     // loc_self_.lat = 391052254;
     // loc_self_.lng = 1171639675;
-    if(copter.openmv.update())
+    if(copter.openmv.update() || sim_flag)
     {
-        loc_self_.lat = copter.openmv.a;   
-        loc_self_.lng = copter.openmv.b;
-        loc_self_.alt = copter.openmv.c;
-        gcs().send_text(MAV_SEVERITY_INFO,"openmv updated...");
+        #ifdef SIM_LOCATION
+            loc_self_new.lat = 391052332;
+            loc_self_new.lng = 1171653439;
+            loc_self_new.alt = 15;
+        #else
+            loc_self_new.lat = copter.openmv.a;   
+            loc_self_new.lng = copter.openmv.b;
+            loc_self_new.alt = copter.openmv.c;
+            loc_self_new.alt = 10;
+            gcs().send_text(MAV_SEVERITY_INFO,"lat = %f , lon = %f, alt= %f",(double)loc_self_new.lat*0.0000001f, 
+                    (double)loc_self_new.lng*0.0000001f, (double)loc_self_new.alt );
+        #endif
+        
+        loc_self_new.set_alt_cm(loc_self_new.alt*100,Location::AltFrame::ABOVE_HOME);
+
         if(!wp_nav->reached_wp_destination()){
-            if(!set_destination(loc_self_))
-                gcs().send_text(MAV_SEVERITY_CRITICAL,"set destination failed...");
+            // gcs().send_text(MAV_SEVERITY_CRITICAL,"destination: %f",loc_self_new.get_distance(loc_self_old));
+            if(loc_self_new.get_distance(loc_self_old) > MINI_DISTANCE){
+                if(!set_destination(loc_self_new))
+                    gcs().send_text(MAV_SEVERITY_CRITICAL,"set destination failed...");
+            }else{
+                // gcs().send_text(MAV_SEVERITY_INFO,"no need to set destination...");
+            }
         }
+        location_destination_update(loc_self_old,loc_self_new);
     }
     else
     {
         if(!wp_nav->reached_wp_destination()){
             if(!set_destination(stopping_point)){
-            gcs().send_text(MAV_SEVERITY_CRITICAL,"set stopping destination failed...");
+                gcs().send_text(MAV_SEVERITY_CRITICAL,"set stopping destination failed...");
             }
         }
     }
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
+   
     copter.failsafe_terrain_set_status(wp_nav->update_wpnav());
     pos_control->update_z_controller();
     // roll, pitch from waypoint controller, yaw heading from GCS or auto_heading()
@@ -351,10 +415,12 @@ void ModeGuided::self_define_control_run()
     if(_count == 400)
     {
         _count = 0;
-        gcs().send_text(MAV_SEVERITY_INFO,"lat = %f , lon = %f, alt= %f",(double)loc_self_.lat*0.0000001f, \
-                    (double)loc_self_.lng*0.0000001f, (double)loc_self_.alt );
-        gcs().send_text(MAV_SEVERITY_INFO,"wp_nav.x = %f , wp_nav.y = %f, wp_nav.z= %f",stopping_point.x, \
-                    stopping_point.y, stopping_point.z );
+        // gcs().send_text(MAV_SEVERITY_INFO,"lat = %f , lon = %f, alt= %f",(double)loc_self.lat*0.0000001f, 
+        //             (double)loc_self.lng*0.0000001f, (double)loc_self.alt );
+        // gcs().send_text(MAV_SEVERITY_INFO,"wp_nav.x = %f , wp_nav.y = %f, wp_nav.z= %f",stopping_point.x, 
+        //             stopping_point.y, stopping_point.z );
+        // gcs().send_text(MAV_SEVERITY_INFO,"wp accel = %f, wp speed = %f",wp_nav->get_wp_acceleration(),
+                // wp_nav->get_default_speed_xy());
     }
   
 }

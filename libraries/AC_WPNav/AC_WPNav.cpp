@@ -1058,7 +1058,6 @@ bool AC_WPNav::get_vector_NEU(const Location &loc, Vector3f &vec, bool &terrain_
         vec.z = temp_alt;
         terrain_alt = false;
     }
-
     // copy xy (we do this to ensure we do not adjust vector unless the overall conversion is successful
     vec.x = res_vec.x;
     vec.y = res_vec.y;

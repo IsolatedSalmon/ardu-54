@@ -823,6 +823,8 @@ public:
     void angle_control_start();
     void angle_control_run();
 
+    void location_destination_update(Location &loc1, const Location &loc2);
+
 protected:
 
     const char *name() const override { return "GUIDED"; }
@@ -838,7 +840,7 @@ private:
     enum class Options : int32_t {
         AllowArmingFromTX = (1U << 0),
     };
-
+    void self_define_control_start();
     void pos_control_start();
     void vel_control_start();
     void posvel_control_start();
